@@ -83,30 +83,6 @@ export const reviews = sqliteTable("reviews", {
   createdAt: text("created_at"),
 });
 
-export const achievements = sqliteTable("achievements", {
-  id: text("id").primaryKey(),
-  providerId: text("provider_id").references(() => providerProfiles.id),
-  title: text("title"),
-  description: text("description"),
-  issuedAt: text("issued_at"),
-});
-
-export const conversations = sqliteTable("conversations", {
-  id: text("id").primaryKey(),
-  requestId: text("request_id").references(() => serviceRequests.id),
-  clientId: text("client_id").references(() => users.id),
-  providerId: text("provider_id").references(() => providerProfiles.id),
-  createdAt: text("created_at"),
-});
-
-export const messages = sqliteTable("messages", {
-  id: text("id").primaryKey(),
-  conversationId: text("conversation_id").references(() => conversations.id),
-  senderId: text("sender_id").references(() => users.id),
-  content: text("content"),
-  readAt: text("read_at"),
-  createdAt: text("created_at"),
-});
 
 export const payments = sqliteTable("payments", {
   id: text("id").primaryKey(),
