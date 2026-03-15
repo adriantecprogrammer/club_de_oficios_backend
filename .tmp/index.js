@@ -13745,12 +13745,9 @@ function createDb(url, authToken) {
 }
 __name(createDb, "createDb");
 
-// src/index.ts
-var app = new Hono2();
-app.get("/", (c) => {
-  return c.text("Club de la chamba");
-});
-app.post("/users/register", async (c) => {
+// src/routes/users.ts
+var usersRoutes = new Hono2();
+usersRoutes.post("/register", async (c) => {
   const body = await c.req.json();
   const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN);
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -13768,6 +13765,14 @@ app.post("/users/register", async (c) => {
   });
   return c.json({ message: "Usuario registrado exitosamente" }, 201);
 });
+var users_default = usersRoutes;
+
+// src/index.ts
+var app = new Hono2();
+app.get("/", (c) => {
+  return c.text("Club de la chamba");
+});
+app.route("/users", users_default);
 var index_default = app;
 export {
   index_default as default
