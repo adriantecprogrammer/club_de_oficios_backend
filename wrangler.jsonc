@@ -2,7 +2,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "club_de_oficios_backend",
   "main": "src/index.ts",
-  "compatibility_date": "2026-03-10"
+  "compatibility_date": "2026-03-10",
+  "vars": {
+    "TURSO_DATABASE_URL": "libsql://clubdeoficios-adr1an.aws-us-east-1.turso.io"
+  },
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
