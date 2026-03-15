@@ -26,4 +26,10 @@ usersRoutes.post('/register', async (c) => {
   return c.json({ message: 'Usuario registrado exitosamente' }, 201)
 })
 
+usersRoutes.get('/all', async (c) => {
+  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const allUsers = await db.select().from(users)
+  return c.json(allUsers)
+})
+
 export default usersRoutes
