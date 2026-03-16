@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "club_de_oficios_backend" generated at 2026-03-16T13:47:25.516Z.

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { users } from '../db/schema'
 
@@ -30,6 +31,19 @@ usersRoutes.get('/all', async (c) => {
   const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
   const allUsers = await db.select().from(users)
   return c.json(allUsers)
+})
+
+usersRoutes.get('/:id', async (c) => {
+  const id = c.req.param('id')
+  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+
+  const user = await db.select().from(users).where(eq(users.id, id))
+
+  if (user.length === 0) {
+    return c.json({ message: 'Usuario no encontrado' }, 404)
+  }
+
+  return c.json(user[0])
 })
 
 export default usersRoutes
