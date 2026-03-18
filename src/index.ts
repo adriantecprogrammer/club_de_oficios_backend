@@ -3,6 +3,7 @@ import { swaggerUI } from '@hono/swagger-ui'
 import usersRoutes from './routes/users'
 import providersRoutes from './routes/providers'
 import requestsRoutes from './routes/requests'
+import categoriesRoutes from './routes/categories'
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>()
 
@@ -13,6 +14,7 @@ app.get('/', (c) => {
 app.route('/users', usersRoutes)
 app.route('/providers', providersRoutes)
 app.route('/request', requestsRoutes)
+app.route('/categories', categoriesRoutes)
 
 // OpenAPI spec endpoint
 app.doc('/doc', {
