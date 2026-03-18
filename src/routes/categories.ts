@@ -18,12 +18,9 @@ const createCategoryRoute = createRoute({
           schema: z.object({
             id: z.string().openapi({ example: "c1" }),
             name: z.string().openapi({ example: "Electricidad" }),
-            description: z
-              .string()
-              .optional()
-              .openapi({
-                example: "Servicios de instalación y reparación eléctrica",
-              }),
+            description: z.string().optional().openapi({
+              example: "Servicios de instalación y reparación eléctrica",
+            }),
           }),
         },
       },

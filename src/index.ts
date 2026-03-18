@@ -20,7 +20,7 @@ app.route('/categories', categoriesRoutes)
 app.doc('/doc', {
   openapi: '3.0.0',
   info: {
-    title: 'Club de Oficios API',
+    title: 'Club de la chamba API',
     version: '1.0.0',
     description: 'API para conectar clientes con proveedores de servicios (oficios)',
   },
