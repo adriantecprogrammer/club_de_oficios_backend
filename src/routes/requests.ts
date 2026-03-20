@@ -123,4 +123,172 @@ requestsRoutes.openapi(getRequestByIdRoute, async (c) => {
   return c.json(request[0], 200)
 })
 
+// GET /client/:client_id — Listar solicitudes por cliente
+const getRequestsByClientRoute = createRoute({
+  method: 'get',
+  path: '/client/{client_id}',
+  tags: ['Service Requests'],
+  summary: 'Listar solicitudes de servicio por cliente',
+  request: {
+    params: z.object({
+      client_id: z.string().openapi({ example: 'uuid-123' }),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Lista de solicitudes del cliente',
+      content: {
+        'application/json': {
+          schema: z.array(
+            z.object({
+              id: z.string(),
+              clientId: z.string().nullable(),
+              providerId: z.string().nullable(),
+              categoryId: z.string().nullable(),
+              title: z.string().nullable(),
+              description: z.string().nullable(),
+              locationAddress: z.string().nullable(),
+              estimatedPrice: z.number().nullable(),
+              status: z.string().nullable(),
+              createdAt: z.string().nullable(),
+              updatedAt: z.string().nullable(),
+            })
+          ),
+        },
+      },
+    },
+  },
+})
+
+requestsRoutes.openapi(getRequestsByClientRoute, async (c) => {
+  const { client_id } = c.req.valid('param')
+  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+
+  const requests = await db
+    .select()
+    .from(serviceRequests)
+    .where(eq(serviceRequests.clientId, client_id))
+
+  return c.json(requests, 200)
+})
+
+// PUT /{id}/assign — Asignar proveedor a una solicitud
+const assignProviderRoute = createRoute({
+  method: 'put',
+  path: '/{id}/assign',
+  tags: ['Service Requests'],
+  summary: 'Asignar un proveedor a una solicitud de servicio',
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: 'uuid-789' }),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            provider_id: z.string().openapi({ example: 'p001' }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Proveedor asignado exitosamente',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+    404: {
+      description: 'Solicitud no encontrada',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+  },
+})
+
+requestsRoutes.openapi(assignProviderRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const body = c.req.valid('json')
+  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+
+  const existing = await db
+    .select()
+    .from(serviceRequests)
+    .where(eq(serviceRequests.id, id))
+
+  if (existing.length === 0) {
+    return c.json({ message: 'Solicitud no encontrada' }, 404)
+  }
+
+  const now = new Date().toISOString()
+
+  await db
+    .update(serviceRequests)
+    .set({
+      providerId: body.provider_id,
+      status: 'assigned',
+      updatedAt: now,
+    })
+    .where(eq(serviceRequests.id, id))
+
+  return c.json({ message: 'Proveedor asignado exitosamente' }, 200)
+})
+
+// GET /provider/:provider_id/jobs — Listar trabajos asignados a un proveedor
+const getJobsByProviderRoute = createRoute({
+  method: 'get',
+  path: '/provider/{provider_id}/jobs',
+  tags: ['Service Requests'],
+  summary: 'Listar trabajos asignados a un proveedor',
+  request: {
+    params: z.object({
+      provider_id: z.string().openapi({ example: 'p001' }),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Lista de trabajos del proveedor',
+      content: {
+        'application/json': {
+          schema: z.array(
+            z.object({
+              id: z.string(),
+              clientId: z.string().nullable(),
+              providerId: z.string().nullable(),
+              categoryId: z.string().nullable(),
+              title: z.string().nullable(),
+              description: z.string().nullable(),
+              locationAddress: z.string().nullable(),
+              estimatedPrice: z.number().nullable(),
+              finalPrice: z.number().nullable(),
+              status: z.string().nullable(),
+              createdAt: z.string().nullable(),
+              updatedAt: z.string().nullable(),
+              completedAt: z.string().nullable(),
+            })
+          ),
+        },
+      },
+    },
+  },
+})
+
+requestsRoutes.openapi(getJobsByProviderRoute, async (c) => {
+  const { provider_id } = c.req.valid('param')
+  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+
+  const jobs = await db
+    .select()
+    .from(serviceRequests)
+    .where(eq(serviceRequests.providerId, provider_id))
+
+  return c.json(jobs, 200)
+})
+
 export default requestsRoutes
