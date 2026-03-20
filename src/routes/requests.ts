@@ -1,9 +1,20 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import { eq } from 'drizzle-orm'
-import { createDb } from '../db/client'
-import { serviceRequests } from '../db/schema'
+import { uuidSchema, priceSchema } from '../schemas/common'
+import {
+  getRequestById,
+  getRequestsByClient,
+  getJobsByProvider,
+  createRequest,
+  assignProvider,
+} from '../services/requests.service'
+import type { Database } from '../db/client'
 
-const requestsRoutes = new OpenAPIHono<{ Bindings: CloudflareBindings }>()
+type Env = {
+  Bindings: CloudflareBindings
+  Variables: { db: Database }
+}
+
+const requestsRoutes = new OpenAPIHono<Env>()
 
 // POST /new
 const createRequestRoute = createRoute({
@@ -16,15 +27,15 @@ const createRequestRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: z.string().openapi({ example: 'uuid-789' }),
-            client_id: z.string().openapi({ example: 'uuid-123' }),
-            category_id: z.string().optional().openapi({ example: 'uuid-cat-1' }),
-            title: z.string().openapi({ example: 'Reparación de tubería' }),
-            description: z.string().optional().openapi({ example: 'Fuga en la cocina' }),
-            location_address: z.string().optional().openapi({ example: 'Calle 123, Col. Centro' }),
-            location_lat: z.number().optional().openapi({ example: 19.4326 }),
-            location_lng: z.number().optional().openapi({ example: -99.1332 }),
-            estimated_price: z.number().optional().openapi({ example: 500.0 }),
+            id: uuidSchema,
+            clientId: uuidSchema,
+            categoryId: uuidSchema.optional(),
+            title: z.string().min(1).max(200).openapi({ example: 'Reparación de tubería' }),
+            description: z.string().max(1000).optional().openapi({ example: 'Fuga en la cocina' }),
+            locationAddress: z.string().max(300).optional().openapi({ example: 'Calle 123, Col. Centro' }),
+            locationLat: z.number().min(-90).max(90).optional().openapi({ example: 19.4326 }),
+            locationLng: z.number().min(-180).max(180).optional().openapi({ example: -99.1332 }),
+            estimatedPrice: priceSchema.optional(),
           }),
         },
       },
@@ -44,23 +55,18 @@ const createRequestRoute = createRoute({
 
 requestsRoutes.openapi(createRequestRoute, async (c) => {
   const body = c.req.valid('json')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const now = new Date().toISOString()
-
-  await db.insert(serviceRequests).values({
+  await createRequest(db, {
     id: body.id,
-    clientId: body.client_id,
-    categoryId: body.category_id,
+    clientId: body.clientId,
+    categoryId: body.categoryId,
     title: body.title,
     description: body.description,
-    locationAddress: body.location_address,
-    locationLat: body.location_lat,
-    locationLng: body.location_lng,
-    estimatedPrice: body.estimated_price,
-    status: 'pending',
-    createdAt: now,
-    updatedAt: now,
+    locationAddress: body.locationAddress,
+    locationLat: body.locationLat,
+    locationLng: body.locationLng,
+    estimatedPrice: body.estimatedPrice,
   })
 
   return c.json({ message: 'Solicitud de servicio creada exitosamente' }, 201)
@@ -74,7 +80,7 @@ const getRequestByIdRoute = createRoute({
   summary: 'Obtener una solicitud de servicio por ID',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-789' }),
+      id: uuidSchema,
     }),
   },
   responses: {
@@ -112,9 +118,9 @@ const getRequestByIdRoute = createRoute({
 
 requestsRoutes.openapi(getRequestByIdRoute, async (c) => {
   const { id } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const request = await db.select().from(serviceRequests).where(eq(serviceRequests.id, id))
+  const request = await getRequestById(db, id)
 
   if (request.length === 0) {
     return c.json({ message: 'Solicitud no encontrada' }, 404)
@@ -123,15 +129,15 @@ requestsRoutes.openapi(getRequestByIdRoute, async (c) => {
   return c.json(request[0], 200)
 })
 
-// GET /client/:client_id — Listar solicitudes por cliente
+// GET /client/:clientId
 const getRequestsByClientRoute = createRoute({
   method: 'get',
-  path: '/client/{client_id}',
+  path: '/client/{clientId}',
   tags: ['Service Requests'],
   summary: 'Listar solicitudes de servicio por cliente',
   request: {
     params: z.object({
-      client_id: z.string().openapi({ example: 'uuid-123' }),
+      clientId: uuidSchema,
     }),
   },
   responses: {
@@ -161,18 +167,15 @@ const getRequestsByClientRoute = createRoute({
 })
 
 requestsRoutes.openapi(getRequestsByClientRoute, async (c) => {
-  const { client_id } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const { clientId } = c.req.valid('param')
+  const db = c.get('db')
 
-  const requests = await db
-    .select()
-    .from(serviceRequests)
-    .where(eq(serviceRequests.clientId, client_id))
+  const requests = await getRequestsByClient(db, clientId)
 
   return c.json(requests, 200)
 })
 
-// PUT /{id}/assign — Asignar proveedor a una solicitud
+// PUT /{id}/assign
 const assignProviderRoute = createRoute({
   method: 'put',
   path: '/{id}/assign',
@@ -180,13 +183,13 @@ const assignProviderRoute = createRoute({
   summary: 'Asignar un proveedor a una solicitud de servicio',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-789' }),
+      id: uuidSchema,
     }),
     body: {
       content: {
         'application/json': {
           schema: z.object({
-            provider_id: z.string().openapi({ example: 'p001' }),
+            providerId: uuidSchema,
           }),
         },
       },
@@ -215,40 +218,28 @@ const assignProviderRoute = createRoute({
 requestsRoutes.openapi(assignProviderRoute, async (c) => {
   const { id } = c.req.valid('param')
   const body = c.req.valid('json')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const existing = await db
-    .select()
-    .from(serviceRequests)
-    .where(eq(serviceRequests.id, id))
+  const existing = await getRequestById(db, id)
 
   if (existing.length === 0) {
     return c.json({ message: 'Solicitud no encontrada' }, 404)
   }
 
-  const now = new Date().toISOString()
-
-  await db
-    .update(serviceRequests)
-    .set({
-      providerId: body.provider_id,
-      status: 'assigned',
-      updatedAt: now,
-    })
-    .where(eq(serviceRequests.id, id))
+  await assignProvider(db, id, body.providerId)
 
   return c.json({ message: 'Proveedor asignado exitosamente' }, 200)
 })
 
-// GET /provider/:provider_id/jobs — Listar trabajos asignados a un proveedor
+// GET /provider/:providerId/jobs
 const getJobsByProviderRoute = createRoute({
   method: 'get',
-  path: '/provider/{provider_id}/jobs',
+  path: '/provider/{providerId}/jobs',
   tags: ['Service Requests'],
   summary: 'Listar trabajos asignados a un proveedor',
   request: {
     params: z.object({
-      provider_id: z.string().openapi({ example: 'p001' }),
+      providerId: uuidSchema,
     }),
   },
   responses: {
@@ -280,13 +271,10 @@ const getJobsByProviderRoute = createRoute({
 })
 
 requestsRoutes.openapi(getJobsByProviderRoute, async (c) => {
-  const { provider_id } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const { providerId } = c.req.valid('param')
+  const db = c.get('db')
 
-  const jobs = await db
-    .select()
-    .from(serviceRequests)
-    .where(eq(serviceRequests.providerId, provider_id))
+  const jobs = await getJobsByProvider(db, providerId)
 
   return c.json(jobs, 200)
 })

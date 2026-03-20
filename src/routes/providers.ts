@@ -1,9 +1,22 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import { eq, and } from 'drizzle-orm'
-import { createDb } from '../db/client'
-import { providerProfiles, users, providerCategories, categories } from '../db/schema'
+import { uuidSchema } from '../schemas/common'
+import {
+  getAllProviders,
+  getProviderById,
+  getProviderWithUser,
+  createProvider,
+  addCategoriesToProvider,
+  getProviderCategories,
+  removeProviderCategory,
+} from '../services/providers.service'
+import type { Database } from '../db/client'
 
-const providersRoutes = new OpenAPIHono<{ Bindings: CloudflareBindings }>()
+type Env = {
+  Bindings: CloudflareBindings
+  Variables: { db: Database }
+}
+
+const providersRoutes = new OpenAPIHono<Env>()
 
 // POST /create
 const createProviderRoute = createRoute({
@@ -16,11 +29,11 @@ const createProviderRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: z.string().openapi({ example: 'uuid-456' }),
-            user_id: z.string().openapi({ example: 'uuid-123' }),
-            bio: z.string().optional().openapi({ example: 'Plomero con 10 años de experiencia' }),
-            experience_years: z.number().optional().openapi({ example: 10 }),
-            verified: z.number().optional().openapi({ example: 0 }),
+            id: uuidSchema,
+            userId: uuidSchema,
+            bio: z.string().max(500).optional().openapi({ example: 'Plomero con 10 años de experiencia' }),
+            experienceYears: z.number().int().min(0).max(50).optional().openapi({ example: 10 }),
+            verified: z.number().int().min(0).max(1).optional().openapi({ example: 0 }),
           }),
         },
       },
@@ -40,21 +53,14 @@ const createProviderRoute = createRoute({
 
 providersRoutes.openapi(createProviderRoute, async (c) => {
   const body = c.req.valid('json')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const now = new Date().toISOString()
-
-  await db.insert(providerProfiles).values({
+  await createProvider(db, {
     id: body.id,
-    userId: body.user_id,
+    userId: body.userId,
     bio: body.bio,
-    experienceYears: body.experience_years,
-    verified: body.verified ?? 0,
-    ratingAvg: 0,
-    ratingCount: 0,
-    completedJobs: 0,
-    createdAt: now,
-    updatedAt: now,
+    experienceYears: body.experienceYears,
+    verified: body.verified,
   })
 
   return c.json({ message: 'Perfil de proveedor creado exitosamente' }, 201)
@@ -90,8 +96,8 @@ const getAllProvidersRoute = createRoute({
 })
 
 providersRoutes.openapi(getAllProvidersRoute, async (c) => {
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
-  const allProfiles = await db.select().from(providerProfiles)
+  const db = c.get('db')
+  const allProfiles = await getAllProviders(db)
   return c.json(allProfiles, 200)
 })
 
@@ -103,7 +109,7 @@ const getProviderByIdRoute = createRoute({
   summary: 'Obtener un perfil de proveedor por ID (incluye datos de usuario)',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-456' }),
+      id: uuidSchema,
     }),
   },
   responses: {
@@ -147,26 +153,18 @@ const getProviderByIdRoute = createRoute({
 
 providersRoutes.openapi(getProviderByIdRoute, async (c) => {
   const { id } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const profile = await db
-    .select()
-    .from(providerProfiles)
-    .where(eq(providerProfiles.id, id))
+  const result = await getProviderWithUser(db, id)
 
-  if (profile.length === 0) {
+  if (!result) {
     return c.json({ message: 'Perfil de proveedor no encontrado' }, 404)
   }
 
-  const user = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, profile[0].userId!))
-
-  return c.json({ ...user[0], provider: profile[0] }, 200)
+  return c.json(result, 200)
 })
 
-// POST /:id/categories — Asignar categorías a un proveedor
+// POST /:id/categories
 const addProviderCategoriesRoute = createRoute({
   method: 'post',
   path: '/{id}/categories',
@@ -174,13 +172,13 @@ const addProviderCategoriesRoute = createRoute({
   summary: 'Asignar una o más categorías a un proveedor',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-456' }),
+      id: uuidSchema,
     }),
     body: {
       content: {
         'application/json': {
           schema: z.object({
-            categoryIds: z.array(z.string()).openapi({ example: ['cat-uuid-1', 'cat-uuid-2'] }),
+            categoryIds: z.array(uuidSchema).min(1).openapi({ example: ['cat-uuid-1', 'cat-uuid-2'] }),
           }),
         },
       },
@@ -209,24 +207,19 @@ const addProviderCategoriesRoute = createRoute({
 providersRoutes.openapi(addProviderCategoriesRoute, async (c) => {
   const { id } = c.req.valid('param')
   const { categoryIds } = c.req.valid('json')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const provider = await db.select().from(providerProfiles).where(eq(providerProfiles.id, id))
+  const provider = await getProviderById(db, id)
   if (provider.length === 0) {
     return c.json({ message: 'Proveedor no encontrado' }, 404)
   }
 
-  const values = categoryIds.map((categoryId) => ({
-    providerId: id,
-    categoryId,
-  }))
-
-  await db.insert(providerCategories).values(values).onConflictDoNothing()
+  await addCategoriesToProvider(db, id, categoryIds)
 
   return c.json({ message: 'Categorías asignadas exitosamente' }, 201)
 })
 
-// GET /:id/categories — Listar categorías de un proveedor
+// GET /:id/categories
 const getProviderCategoriesRoute = createRoute({
   method: 'get',
   path: '/{id}/categories',
@@ -234,7 +227,7 @@ const getProviderCategoriesRoute = createRoute({
   summary: 'Obtener las categorías de un proveedor',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-456' }),
+      id: uuidSchema,
     }),
   },
   responses: {
@@ -264,28 +257,19 @@ const getProviderCategoriesRoute = createRoute({
 
 providersRoutes.openapi(getProviderCategoriesRoute, async (c) => {
   const { id } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const provider = await db.select().from(providerProfiles).where(eq(providerProfiles.id, id))
+  const provider = await getProviderById(db, id)
   if (provider.length === 0) {
     return c.json({ message: 'Proveedor no encontrado' }, 404)
   }
 
-  const result = await db
-    .select({
-      id: categories.id,
-      name: categories.name,
-      description: categories.description,
-      createdAt: categories.createdAt,
-    })
-    .from(providerCategories)
-    .innerJoin(categories, eq(providerCategories.categoryId, categories.id))
-    .where(eq(providerCategories.providerId, id))
+  const result = await getProviderCategories(db, id)
 
   return c.json(result, 200)
 })
 
-// DELETE /:id/categories/:categoryId — Quitar una categoría de un proveedor
+// DELETE /:id/categories/:categoryId
 const removeProviderCategoryRoute = createRoute({
   method: 'delete',
   path: '/{id}/categories/{categoryId}',
@@ -293,8 +277,8 @@ const removeProviderCategoryRoute = createRoute({
   summary: 'Quitar una categoría de un proveedor',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-456' }),
-      categoryId: z.string().openapi({ example: 'cat-uuid-1' }),
+      id: uuidSchema,
+      categoryId: uuidSchema,
     }),
   },
   responses: {
@@ -311,16 +295,9 @@ const removeProviderCategoryRoute = createRoute({
 
 providersRoutes.openapi(removeProviderCategoryRoute, async (c) => {
   const { id, categoryId } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  await db
-    .delete(providerCategories)
-    .where(
-      and(
-        eq(providerCategories.providerId, id),
-        eq(providerCategories.categoryId, categoryId)
-      )
-    )
+  await removeProviderCategory(db, id, categoryId)
 
   return c.json({ message: 'Categoría removida exitosamente' }, 200)
 })

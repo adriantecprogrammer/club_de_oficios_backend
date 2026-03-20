@@ -1,9 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import { eq } from 'drizzle-orm'
-import { createDb } from '../db/client'
-import { users } from '../db/schema'
+import { uuidSchema, roleSchema, phoneSchema } from '../schemas/common'
+import { getAllUsers, getUserById, createUser } from '../services/users.service'
+import type { Database } from '../db/client'
 
-const usersRoutes = new OpenAPIHono<{ Bindings: CloudflareBindings }>()
+type Env = {
+  Bindings: CloudflareBindings
+  Variables: { db: Database }
+}
+
+const usersRoutes = new OpenAPIHono<Env>()
 
 // POST /register
 const registerRoute = createRoute({
@@ -16,13 +21,13 @@ const registerRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: z.string().openapi({ example: 'uuid-123' }),
-            first_name: z.string().openapi({ example: 'Juan' }),
-            last_name: z.string().openapi({ example: 'Pérez' }),
+            id: uuidSchema,
+            firstName: z.string().min(1).max(100).openapi({ example: 'Juan' }),
+            lastName: z.string().min(1).max(100).openapi({ example: 'Pérez' }),
             email: z.string().email().openapi({ example: 'juan@email.com' }),
-            password_hash: z.string().openapi({ example: 'hashed_password' }),
-            phone: z.string().optional().openapi({ example: '+52 123 456 7890' }),
-            role: z.string().openapi({ example: 'client' }),
+            passwordHash: z.string().min(1).openapi({ example: 'hashed_password' }),
+            phone: phoneSchema,
+            role: roleSchema,
           }),
         },
       },
@@ -42,21 +47,16 @@ const registerRoute = createRoute({
 
 usersRoutes.openapi(registerRoute, async (c) => {
   const body = c.req.valid('json')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const now = new Date().toISOString()
-
-  await db.insert(users).values({
+  await createUser(db, {
     id: body.id,
-    firstName: body.first_name,
-    lastName: body.last_name,
+    firstName: body.firstName,
+    lastName: body.lastName,
     email: body.email,
-    passwordHash: body.password_hash,
+    passwordHash: body.passwordHash,
     phone: body.phone,
     role: body.role,
-    isActive: 1,
-    createdAt: now,
-    updatedAt: now,
   })
 
   return c.json({ message: 'Usuario registrado exitosamente' }, 201)
@@ -91,8 +91,8 @@ const getAllUsersRoute = createRoute({
 })
 
 usersRoutes.openapi(getAllUsersRoute, async (c) => {
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
-  const allUsers = await db.select().from(users)
+  const db = c.get('db')
+  const allUsers = await getAllUsers(db)
   return c.json(allUsers, 200)
 })
 
@@ -104,7 +104,7 @@ const getUserByIdRoute = createRoute({
   summary: 'Obtener un usuario por ID',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: 'uuid-123' }),
+      id: uuidSchema,
     }),
   },
   responses: {
@@ -139,9 +139,9 @@ const getUserByIdRoute = createRoute({
 
 usersRoutes.openapi(getUserByIdRoute, async (c) => {
   const { id } = c.req.valid('param')
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN)
+  const db = c.get('db')
 
-  const user = await db.select().from(users).where(eq(users.id, id))
+  const user = await getUserById(db, id)
 
   if (user.length === 0) {
     return c.json({ message: 'Usuario no encontrado' }, 404)

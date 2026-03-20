@@ -1,25 +1,36 @@
-import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
-import { createDb } from "../db/client";
-import { categories } from "../db/schema";
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
+import { uuidSchema } from '../schemas/common'
+import {
+  getAllCategories,
+  getCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from '../services/categories.service'
+import type { Database } from '../db/client'
 
-const categoriesRoutes = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+type Env = {
+  Bindings: CloudflareBindings
+  Variables: { db: Database }
+}
+
+const categoriesRoutes = new OpenAPIHono<Env>()
 
 // POST /create
 const createCategoryRoute = createRoute({
-  method: "post",
-  path: "/create",
-  tags: ["Categories"],
-  summary: "Crear una nueva categoría",
+  method: 'post',
+  path: '/create',
+  tags: ['Categories'],
+  summary: 'Crear una nueva categoría',
   request: {
     body: {
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({
-            id: z.string().openapi({ example: "c1" }),
-            name: z.string().openapi({ example: "Electricidad" }),
-            description: z.string().optional().openapi({
-              example: "Servicios de instalación y reparación eléctrica",
+            id: uuidSchema,
+            name: z.string().min(1).max(100).openapi({ example: 'Electricidad' }),
+            description: z.string().max(500).optional().openapi({
+              example: 'Servicios de instalación y reparación eléctrica',
             }),
           }),
         },
@@ -28,79 +39,76 @@ const createCategoryRoute = createRoute({
   },
   responses: {
     201: {
-      description: "Categoría creada exitosamente",
+      description: 'Categoría creada exitosamente',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({ message: z.string() }),
         },
       },
     },
   },
-});
+})
 
 categoriesRoutes.openapi(createCategoryRoute, async (c) => {
-  const body = c.req.valid("json");
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN);
+  const body = c.req.valid('json')
+  const db = c.get('db')
 
-  const now = new Date().toISOString();
-
-  await db.insert(categories).values({
+  await createCategory(db, {
     id: body.id,
     name: body.name,
     description: body.description,
-    createdAt: now,
-  });
+  })
 
-  return c.json({ message: "Categoría creada exitosamente" }, 201);
-});
+  return c.json({ message: 'Categoría creada exitosamente' }, 201)
+})
 
 // GET /all
 const getAllCategoriesRoute = createRoute({
-  method: "get",
-  path: "/all",
-  tags: ["Categories"],
-  summary: "Obtener todas las categorías",
+  method: 'get',
+  path: '/all',
+  tags: ['Categories'],
+  summary: 'Obtener todas las categorías',
   responses: {
     200: {
-      description: "Lista de categorías",
+      description: 'Lista de categorías',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.array(
             z.object({
               id: z.string(),
               name: z.string().nullable(),
               description: z.string().nullable(),
               createdAt: z.string().nullable(),
-            }),
+            })
           ),
         },
       },
     },
   },
-});
+})
 
 categoriesRoutes.openapi(getAllCategoriesRoute, async (c) => {
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN);
-  const allCategories = await db.select().from(categories);
-  return c.json(allCategories, 200);
-});
+  const db = c.get('db')
+  const allCategories = await getAllCategories(db)
+  return c.json(allCategories, 200)
+})
 
 // GET /:id
 const getCategoryByIdRoute = createRoute({
-  method: "get",
-  path: "/{id}",
-  tags: ["Categories"],
-  summary: "Obtener una categoría por ID",
+  method: 'get',
+  path: '/{id}',
+  tags: ['Categories'],
+  summary: 'Obtener una categoría por ID',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: "c1" }),
+      id: uuidSchema,
     }),
   },
   responses: {
     200: {
-      description: "Categoría encontrada",
+      description: 'Categoría encontrada',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({
             id: z.string(),
             name: z.string().nullable(),
@@ -111,51 +119,47 @@ const getCategoryByIdRoute = createRoute({
       },
     },
     404: {
-      description: "Categoría no encontrada",
+      description: 'Categoría no encontrada',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({ message: z.string() }),
         },
       },
     },
   },
-});
+})
 
 categoriesRoutes.openapi(getCategoryByIdRoute, async (c) => {
-  const { id } = c.req.valid("param");
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN);
+  const { id } = c.req.valid('param')
+  const db = c.get('db')
 
-  const category = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.id, id));
+  const category = await getCategoryById(db, id)
 
   if (category.length === 0) {
-    return c.json({ message: "Categoría no encontrada" }, 404);
+    return c.json({ message: 'Categoría no encontrada' }, 404)
   }
 
-  return c.json(category[0], 200);
-});
+  return c.json(category[0], 200)
+})
 
 // PUT /:id
 const updateCategoryRoute = createRoute({
-  method: "put",
-  path: "/{id}",
-  tags: ["Categories"],
-  summary: "Actualizar una categoría",
+  method: 'put',
+  path: '/{id}',
+  tags: ['Categories'],
+  summary: 'Actualizar una categoría',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: "c1" }),
+      id: uuidSchema,
     }),
     body: {
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({
-            name: z.string().optional().openapi({ example: "Plomería" }),
-            description: z
-              .string()
-              .optional()
-              .openapi({ example: "Servicios de plomería en general" }),
+            name: z.string().min(1).max(100).optional().openapi({ example: 'Plomería' }),
+            description: z.string().max(500).optional().openapi({
+              example: 'Servicios de plomería en general',
+            }),
           }),
         },
       },
@@ -163,96 +167,84 @@ const updateCategoryRoute = createRoute({
   },
   responses: {
     200: {
-      description: "Categoría actualizada exitosamente",
+      description: 'Categoría actualizada exitosamente',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({ message: z.string() }),
         },
       },
     },
     404: {
-      description: "Categoría no encontrada",
+      description: 'Categoría no encontrada',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({ message: z.string() }),
         },
       },
     },
   },
-});
+})
 
 categoriesRoutes.openapi(updateCategoryRoute, async (c) => {
-  const { id } = c.req.valid("param");
-  const body = c.req.valid("json");
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN);
+  const { id } = c.req.valid('param')
+  const body = c.req.valid('json')
+  const db = c.get('db')
 
-  const existing = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.id, id));
+  const existing = await getCategoryById(db, id)
 
   if (existing.length === 0) {
-    return c.json({ message: "Categoría no encontrada" }, 404);
+    return c.json({ message: 'Categoría no encontrada' }, 404)
   }
 
-  await db
-    .update(categories)
-    .set({
-      name: body.name ?? existing[0].name,
-      description: body.description ?? existing[0].description,
-    })
-    .where(eq(categories.id, id));
+  await updateCategory(db, id, body, existing[0])
 
-  return c.json({ message: "Categoría actualizada exitosamente" }, 200);
-});
+  return c.json({ message: 'Categoría actualizada exitosamente' }, 200)
+})
 
 // DELETE /:id
 const deleteCategoryRoute = createRoute({
-  method: "delete",
-  path: "/{id}",
-  tags: ["Categories"],
-  summary: "Eliminar una categoría",
+  method: 'delete',
+  path: '/{id}',
+  tags: ['Categories'],
+  summary: 'Eliminar una categoría',
   request: {
     params: z.object({
-      id: z.string().openapi({ example: "c1" }),
+      id: uuidSchema,
     }),
   },
   responses: {
     200: {
-      description: "Categoría eliminada exitosamente",
+      description: 'Categoría eliminada exitosamente',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({ message: z.string() }),
         },
       },
     },
     404: {
-      description: "Categoría no encontrada",
+      description: 'Categoría no encontrada',
       content: {
-        "application/json": {
+        'application/json': {
           schema: z.object({ message: z.string() }),
         },
       },
     },
   },
-});
+})
 
 categoriesRoutes.openapi(deleteCategoryRoute, async (c) => {
-  const { id } = c.req.valid("param");
-  const db = createDb(c.env.TURSO_DATABASE_URL, c.env.TURSO_AUTH_TOKEN);
+  const { id } = c.req.valid('param')
+  const db = c.get('db')
 
-  const existing = await db
-    .select()
-    .from(categories)
-    .where(eq(categories.id, id));
+  const existing = await getCategoryById(db, id)
 
   if (existing.length === 0) {
-    return c.json({ message: "Categoría no encontrada" }, 404);
+    return c.json({ message: 'Categoría no encontrada' }, 404)
   }
 
-  await db.delete(categories).where(eq(categories.id, id));
+  await deleteCategory(db, id)
 
-  return c.json({ message: "Categoría eliminada exitosamente" }, 200);
-});
+  return c.json({ message: 'Categoría eliminada exitosamente' }, 200)
+})
 
-export default categoriesRoutes;
+export default categoriesRoutes

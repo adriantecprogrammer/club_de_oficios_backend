@@ -1,11 +1,14 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { swaggerUI } from '@hono/swagger-ui'
+import { dbMiddleware } from './middleware/db'
 import usersRoutes from './routes/users'
 import providersRoutes from './routes/providers'
 import requestsRoutes from './routes/requests'
 import categoriesRoutes from './routes/categories'
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>()
+
+app.use('*', dbMiddleware)
 
 app.get('/', (c) => {
   return c.text('Club de la chamba')
