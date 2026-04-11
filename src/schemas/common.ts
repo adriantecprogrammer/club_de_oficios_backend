@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi'
 
-export const uuidSchema = z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' })
+export const uuidSchema = z.string().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' })
 
 export const roleSchema = z.enum(['client', 'provider']).openapi({ example: 'client' })
 
