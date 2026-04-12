@@ -5,6 +5,8 @@ import usersRoutes from './routes/users'
 import providersRoutes from './routes/providers'
 import requestsRoutes from './routes/requests'
 import categoriesRoutes from './routes/categories'
+import paymentsRoutes from './routes/payments'
+import reviewsRoutes from './routes/reviews'
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>()
 
@@ -18,6 +20,8 @@ app.route('/users', usersRoutes)
 app.route('/providers', providersRoutes)
 app.route('/request', requestsRoutes)
 app.route('/categories', categoriesRoutes)
+app.route('/payments', paymentsRoutes)
+app.route('/reviews', reviewsRoutes)
 
 // OpenAPI spec endpoint
 app.doc('/doc', {

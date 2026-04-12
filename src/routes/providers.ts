@@ -8,6 +8,7 @@ import {
   addCategoriesToProvider,
   getProviderCategories,
   removeProviderCategory,
+  getProvidersByCategoryId,
 } from '../services/providers.service'
 import type { Database } from '../db/client'
 
@@ -300,6 +301,51 @@ providersRoutes.openapi(removeProviderCategoryRoute, async (c) => {
   await removeProviderCategory(db, id, categoryId)
 
   return c.json({ message: 'Categoría removida exitosamente' }, 200)
+})
+
+// GET /by-category/{categoryId}
+const getProvidersByCategoryRoute = createRoute({
+  method: 'get',
+  path: '/by-category/{categoryId}',
+  tags: ['Providers'],
+  summary: 'Listar proveedores por categoría',
+  request: {
+    params: z.object({
+      categoryId: uuidSchema,
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Lista de proveedores en la categoría',
+      content: {
+        'application/json': {
+          schema: z.array(
+            z.object({
+              id: z.string(),
+              userId: z.string().nullable(),
+              bio: z.string().nullable(),
+              experienceYears: z.number().nullable(),
+              verified: z.number().nullable(),
+              ratingAvg: z.number().nullable(),
+              ratingCount: z.number().nullable(),
+              completedJobs: z.number().nullable(),
+              createdAt: z.string().nullable(),
+              updatedAt: z.string().nullable(),
+            })
+          ),
+        },
+      },
+    },
+  },
+})
+
+providersRoutes.openapi(getProvidersByCategoryRoute, async (c) => {
+  const { categoryId } = c.req.valid('param')
+  const db = c.get('db')
+
+  const result = await getProvidersByCategoryId(db, categoryId)
+
+  return c.json(result, 200)
 })
 
 export default providersRoutes

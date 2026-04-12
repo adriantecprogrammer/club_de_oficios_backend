@@ -84,3 +84,22 @@ export async function removeProviderCategory(db: Database, providerId: string, c
       )
     )
 }
+
+export function getProvidersByCategoryId(db: Database, categoryId: string) {
+  return db
+    .select({
+      id: providerProfiles.id,
+      userId: providerProfiles.userId,
+      bio: providerProfiles.bio,
+      experienceYears: providerProfiles.experienceYears,
+      verified: providerProfiles.verified,
+      ratingAvg: providerProfiles.ratingAvg,
+      ratingCount: providerProfiles.ratingCount,
+      completedJobs: providerProfiles.completedJobs,
+      createdAt: providerProfiles.createdAt,
+      updatedAt: providerProfiles.updatedAt,
+    })
+    .from(providerCategories)
+    .innerJoin(providerProfiles, eq(providerCategories.providerId, providerProfiles.id))
+    .where(eq(providerCategories.categoryId, categoryId))
+}
