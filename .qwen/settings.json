@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npm install *)",
       "Bash(npx *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(sleep *)",
+      "Bash(kill *)",
+      "Bash(true)",
+      "Bash(openssl *)"
     ]
   },
   "$version": 3
