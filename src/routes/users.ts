@@ -7,6 +7,7 @@ import {
   loginUser,
 } from "../services/users.service";
 import { getProviderWithUser } from "../services/providers.service";
+import { generateToken } from "../utils/jwt";
 import type { Database } from "../db/client";
 
 type Env = {
@@ -98,6 +99,9 @@ const loginRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
+            token: z.string().openapi({
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            }),
             user: z.object({
               id: z.string(),
               firstName: z.string().nullable(),
@@ -148,12 +152,17 @@ usersRoutes.openapi(loginRoute, async (c) => {
     return c.json({ message: "Credenciales inválidas" }, 401);
   }
 
+  const token = await generateToken(c, {
+    userId: user.id,
+    role: user.role ?? "",
+  });
+
   let provider = null;
   if (user.role === "provider") {
     provider = await getProviderWithUser(db, user.id);
   }
 
-  return c.json({ user, provider }, 200);
+  return c.json({ token, user, provider }, 200);
 });
 
 // GET /all
