@@ -5,7 +5,7 @@
   "compatibility_date": "2026-03-10",
   "vars": {
     "TURSO_DATABASE_URL": "libsql://clubdeoficios-adr1an.aws-us-east-1.turso.io",
-    "JWT_SECRET": "RC3rJB8G1RmneDEv+8wT+BCAbkvDQUMHgZJQ4CT4ML71fRUKZvYRZMn/8mrYhssi"
+    "JWT_SECRET": ""
   },
   // "compatibility_flags": [
   //   "nodejs_compat"

@@ -30,7 +30,6 @@ const createProviderRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: uuidSchema,
             userId: uuidSchema,
             bio: z.string().max(500).optional().openapi({ example: 'Plomero con 10 años de experiencia' }),
             experienceYears: z.number().int().min(0).max(50).optional().openapi({ example: 10 }),
@@ -45,7 +44,7 @@ const createProviderRoute = createRoute({
       description: 'Perfil de proveedor creado exitosamente',
       content: {
         'application/json': {
-          schema: z.object({ message: z.string() }),
+          schema: z.object({ message: z.string(), id: z.string() }),
         },
       },
     },
@@ -56,15 +55,14 @@ providersRoutes.openapi(createProviderRoute, async (c) => {
   const body = c.req.valid('json')
   const db = c.get('db')
 
-  await createProvider(db, {
-    id: body.id,
+  const providerId = await createProvider(db, {
     userId: body.userId,
     bio: body.bio,
     experienceYears: body.experienceYears,
     verified: body.verified,
   })
 
-  return c.json({ message: 'Perfil de proveedor creado exitosamente' }, 201)
+  return c.json({ message: 'Perfil de proveedor creado exitosamente', id: providerId }, 201)
 })
 
 // GET /all

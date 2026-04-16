@@ -28,7 +28,6 @@ const registerRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            id: uuidSchema,
             firstName: z.string().min(1).max(100).openapi({ example: "Juan" }),
             lastName: z.string().min(1).max(100).openapi({ example: "Pérez" }),
             email: z.string().email().openapi({ example: "juan@email.com" }),
@@ -48,7 +47,7 @@ const registerRoute = createRoute({
       description: "Usuario registrado exitosamente",
       content: {
         "application/json": {
-          schema: z.object({ message: z.string() }),
+          schema: z.object({ message: z.string(), id: z.string() }),
         },
       },
     },
@@ -59,8 +58,7 @@ usersRoutes.openapi(registerRoute, async (c) => {
   const body = c.req.valid("json");
   const db = c.get("db");
 
-  await createUser(db, {
-    id: body.id,
+  const userId = await createUser(db, {
     firstName: body.firstName,
     lastName: body.lastName,
     email: body.email,
@@ -69,7 +67,10 @@ usersRoutes.openapi(registerRoute, async (c) => {
     role: body.role,
   });
 
-  return c.json({ message: "Usuario registrado exitosamente" }, 201);
+  return c.json(
+    { message: "Usuario registrado exitosamente", id: userId },
+    201,
+  );
 });
 
 // POST /login
