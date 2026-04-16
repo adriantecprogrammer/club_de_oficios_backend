@@ -29,17 +29,17 @@ export async function getProviderWithUser(db: Database, id: string) {
 export async function createProvider(
   db: Database,
   data: {
-    id: string
     userId: string
     bio?: string
     experienceYears?: number
     verified?: number
   }
 ) {
+  const id = crypto.randomUUID()
   const now = new Date().toISOString()
 
   await db.insert(providerProfiles).values({
-    id: data.id,
+    id,
     userId: data.userId,
     bio: data.bio,
     experienceYears: data.experienceYears,
@@ -50,6 +50,8 @@ export async function createProvider(
     createdAt: now,
     updatedAt: now,
   })
+
+  return id
 }
 
 export async function addCategoriesToProvider(db: Database, providerId: string, categoryIds: string[]) {

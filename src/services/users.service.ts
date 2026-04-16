@@ -33,7 +33,6 @@ export async function loginUser(
 export async function createUser(
   db: Database,
   data: {
-    id: string;
     firstName: string;
     lastName: string;
     email: string;
@@ -42,10 +41,11 @@ export async function createUser(
     role: "client" | "provider";
   },
 ) {
+  const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
   await db.insert(users).values({
-    id: data.id,
+    id,
     firstName: data.firstName,
     lastName: data.lastName,
     email: data.email,
@@ -56,4 +56,6 @@ export async function createUser(
     createdAt: now,
     updatedAt: now,
   });
+
+  return id;
 }
