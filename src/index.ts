@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { swaggerUI } from "@hono/swagger-ui";
 import { apiReference } from "@scalar/hono-api-reference";
+import { cors } from "hono/cors";
 import { dbMiddleware } from "./middleware/db";
 import usersRoutes from "./routes/users";
 import providersRoutes from "./routes/providers";
@@ -10,6 +11,16 @@ import paymentsRoutes from "./routes/payments";
 import reviewsRoutes from "./routes/reviews";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+app.use(
+  "*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    maxAge: 600,
+  }),
+);
 
 app.use("*", dbMiddleware);
 
