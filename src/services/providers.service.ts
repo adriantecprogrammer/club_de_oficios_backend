@@ -26,6 +26,22 @@ export async function getProviderWithUser(db: Database, id: string) {
   return { ...user[0], provider: profile[0] }
 }
 
+export async function getProviderWithUserByUserId(db: Database, userId: string) {
+  const profile = await db
+    .select()
+    .from(providerProfiles)
+    .where(eq(providerProfiles.userId, userId))
+
+  if (profile.length === 0) return null
+
+  const user = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+
+  return { ...user[0], provider: profile[0] }
+}
+
 export async function createProvider(
   db: Database,
   data: {
