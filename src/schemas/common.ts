@@ -27,6 +27,8 @@ export const requestStatusSchema = z.enum([
   'cancelled',
 ])
 
+export type RequestStatus = z.infer<typeof requestStatusSchema>
+
 export const paymentStatusSchema = z.enum([
   'pending',
   'processing',

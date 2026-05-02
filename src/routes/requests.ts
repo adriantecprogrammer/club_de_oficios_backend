@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
-import { uuidSchema, priceSchema } from '../schemas/common'
+import { uuidSchema, priceSchema, requestStatusSchema } from '../schemas/common'
 import {
   getRequestById,
   getRequestsByClient,
   getJobsByProvider,
   createRequest,
-  assignProvider,
+  acceptRequest,
 } from '../services/requests.service'
 import type { Database } from '../db/client'
 
@@ -29,6 +29,7 @@ const createRequestRoute = createRoute({
           schema: z.object({
             id: uuidSchema,
             clientId: uuidSchema,
+            providerId: uuidSchema,
             categoryId: uuidSchema.optional(),
             title: z.string().min(1).max(200).openapi({ example: 'Reparación de tubería' }),
             description: z.string().max(1000).optional().openapi({ example: 'Fuga en la cocina' }),
@@ -60,6 +61,7 @@ requestsRoutes.openapi(createRequestRoute, async (c) => {
   await createRequest(db, {
     id: body.id,
     clientId: body.clientId,
+    providerId: body.providerId,
     categoryId: body.categoryId,
     title: body.title,
     description: body.description,
@@ -98,7 +100,7 @@ const getRequestByIdRoute = createRoute({
             locationLat: z.number().nullable(),
             locationLng: z.number().nullable(),
             estimatedPrice: z.number().nullable(),
-            status: z.string().nullable(),
+            status: requestStatusSchema.nullable(),
             createdAt: z.string().nullable(),
             updatedAt: z.string().nullable(),
           }),
@@ -155,7 +157,7 @@ const getRequestsByClientRoute = createRoute({
               description: z.string().nullable(),
               locationAddress: z.string().nullable(),
               estimatedPrice: z.number().nullable(),
-              status: z.string().nullable(),
+              status: requestStatusSchema.nullable(),
               createdAt: z.string().nullable(),
               updatedAt: z.string().nullable(),
             })
@@ -175,12 +177,12 @@ requestsRoutes.openapi(getRequestsByClientRoute, async (c) => {
   return c.json(requests, 200)
 })
 
-// PUT /{id}/assign
-const assignProviderRoute = createRoute({
+// PUT /{id}/accept
+const acceptRequestRoute = createRoute({
   method: 'put',
-  path: '/{id}/assign',
+  path: '/{id}/accept',
   tags: ['Service Requests'],
-  summary: 'Asignar un proveedor a una solicitud de servicio',
+  summary: 'Proveedor acepta una solicitud de servicio',
   request: {
     params: z.object({
       id: uuidSchema,
@@ -197,7 +199,7 @@ const assignProviderRoute = createRoute({
   },
   responses: {
     200: {
-      description: 'Proveedor asignado exitosamente',
+      description: 'Solicitud aceptada exitosamente',
       content: {
         'application/json': {
           schema: z.object({ message: z.string() }),
@@ -212,23 +214,35 @@ const assignProviderRoute = createRoute({
         },
       },
     },
+    403: {
+      description: 'Proveedor no autorizado o solicitud no pendiente',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
   },
 })
 
-requestsRoutes.openapi(assignProviderRoute, async (c) => {
+requestsRoutes.openapi(acceptRequestRoute, async (c) => {
   const { id } = c.req.valid('param')
   const body = c.req.valid('json')
   const db = c.get('db')
 
-  const existing = await getRequestById(db, id)
-
-  if (existing.length === 0) {
-    return c.json({ message: 'Solicitud no encontrada' }, 404)
+  try {
+    await acceptRequest(db, id, body.providerId)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN_ERROR'
+    const statusMap: Record<string, number> = {
+      REQUEST_NOT_FOUND: 404,
+      NOT_ASSIGNED_PROVIDER: 403,
+      REQUEST_NOT_PENDING: 403,
+    }
+    return c.json({ message }, statusMap[message] ?? 400)
   }
 
-  await assignProvider(db, id, body.providerId)
-
-  return c.json({ message: 'Proveedor asignado exitosamente' }, 200)
+  return c.json({ message: 'Solicitud aceptada exitosamente' }, 200)
 })
 
 // GET /provider/:providerId/jobs
@@ -258,7 +272,7 @@ const getJobsByProviderRoute = createRoute({
               locationAddress: z.string().nullable(),
               estimatedPrice: z.number().nullable(),
               finalPrice: z.number().nullable(),
-              status: z.string().nullable(),
+              status: requestStatusSchema.nullable(),
               createdAt: z.string().nullable(),
               updatedAt: z.string().nullable(),
               completedAt: z.string().nullable(),
