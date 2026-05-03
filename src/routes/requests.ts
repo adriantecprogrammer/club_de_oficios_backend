@@ -27,7 +27,6 @@ const createRequestRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: uuidSchema,
             clientId: uuidSchema,
             providerId: uuidSchema,
             categoryId: uuidSchema.optional(),
@@ -57,9 +56,10 @@ const createRequestRoute = createRoute({
 requestsRoutes.openapi(createRequestRoute, async (c) => {
   const body = c.req.valid('json')
   const db = c.get('db')
+  const id = crypto.randomUUID()
 
   await createRequest(db, {
-    id: body.id,
+    id,
     clientId: body.clientId,
     providerId: body.providerId,
     categoryId: body.categoryId,
