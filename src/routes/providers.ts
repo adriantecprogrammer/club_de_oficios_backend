@@ -4,6 +4,7 @@ import {
   getAllProviders,
   getProviderById,
   getProviderWithUser,
+  getProviderWithUserByUserId,
   createProvider,
   addCategoriesToProvider,
   getProviderCategories,
@@ -342,6 +343,69 @@ providersRoutes.openapi(getProvidersByCategoryRoute, async (c) => {
   const db = c.get('db')
 
   const result = await getProvidersByCategoryId(db, categoryId)
+
+  return c.json(result, 200)
+})
+
+// GET /by-user/{userId}
+const getProviderByUserIdRoute = createRoute({
+  method: 'get',
+  path: '/by-user/{userId}',
+  tags: ['Providers'],
+  summary: 'Obtener un perfil de proveedor por userId (incluye datos de usuario)',
+  request: {
+    params: z.object({
+      userId: uuidSchema,
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Perfil de proveedor encontrado',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string(),
+            firstName: z.string().nullable(),
+            lastName: z.string().nullable(),
+            email: z.string(),
+            phone: z.string().nullable(),
+            role: z.string().nullable(),
+            provider: z.object({
+              id: z.string(),
+              userId: z.string().nullable(),
+              bio: z.string().nullable(),
+              experienceYears: z.number().nullable(),
+              verified: z.number().nullable(),
+              ratingAvg: z.number().nullable(),
+              ratingCount: z.number().nullable(),
+              completedJobs: z.number().nullable(),
+              createdAt: z.string().nullable(),
+              updatedAt: z.string().nullable(),
+            }),
+          }),
+        },
+      },
+    },
+    404: {
+      description: 'Perfil de proveedor no encontrado',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+  },
+})
+
+providersRoutes.openapi(getProviderByUserIdRoute, async (c) => {
+  const { userId } = c.req.valid('param')
+  const db = c.get('db')
+
+  const result = await getProviderWithUserByUserId(db, userId)
+
+  if (!result) {
+    return c.json({ message: 'Perfil de proveedor no encontrado' }, 404)
+  }
 
   return c.json(result, 200)
 })
