@@ -24,6 +24,7 @@ export const requestStatusSchema = z.enum([
   'assigned',
   'in_progress',
   'completed',
+  'paid',
   'cancelled',
 ])
 

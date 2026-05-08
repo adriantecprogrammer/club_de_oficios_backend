@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { payments } from '../db/schema'
+import { payments, serviceRequests } from '../db/schema'
 import type { Database } from '../db/client'
 
 export async function createPayment(
@@ -28,6 +28,11 @@ export async function createPayment(
     status: 'pending',
     createdAt: now,
   })
+
+  await db
+    .update(serviceRequests)
+    .set({ status: 'paid', updatedAt: now })
+    .where(eq(serviceRequests.id, data.requestId))
 }
 
 export function getPaymentByRequestId(db: Database, requestId: string) {
