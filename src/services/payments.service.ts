@@ -5,7 +5,6 @@ import type { Database } from '../db/client'
 export async function createPayment(
   db: Database,
   data: {
-    id: string
     requestId: string
     clientId: string
     providerId: string
@@ -18,7 +17,7 @@ export async function createPayment(
   const now = new Date().toISOString()
 
   await db.insert(payments).values({
-    id: data.id,
+    id: crypto.randomUUID(),
     requestId: data.requestId,
     clientId: data.clientId,
     providerId: data.providerId,

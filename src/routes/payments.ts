@@ -21,7 +21,6 @@ const createPaymentRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: uuidSchema,
             requestId: uuidSchema,
             clientId: uuidSchema,
             providerId: uuidSchema,
@@ -51,7 +50,6 @@ paymentsRoutes.openapi(createPaymentRoute, async (c) => {
   const db = c.get('db')
 
   await createPayment(db, {
-    id: body.id,
     requestId: body.requestId,
     clientId: body.clientId,
     providerId: body.providerId,
