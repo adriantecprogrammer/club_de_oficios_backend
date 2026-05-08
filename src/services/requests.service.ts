@@ -62,6 +62,44 @@ export async function updateRequestStatus(db: Database, requestId: string, statu
     .where(eq(serviceRequests.id, requestId))
 }
 
+export async function startRequest(db: Database, requestId: string) {
+  const request = await getRequestById(db, requestId)
+
+  if (request.length === 0) {
+    throw new Error('REQUEST_NOT_FOUND')
+  }
+
+  if (request[0].status !== 'assigned') {
+    throw new Error('REQUEST_NOT_ASSIGNED')
+  }
+
+  await updateRequestStatus(db, requestId, 'in_progress')
+}
+
+export async function completeRequest(db: Database, requestId: string, finalPrice: number) {
+  const request = await getRequestById(db, requestId)
+
+  if (request.length === 0) {
+    throw new Error('REQUEST_NOT_FOUND')
+  }
+
+  if (request[0].status !== 'in_progress') {
+    throw new Error('REQUEST_NOT_IN_PROGRESS')
+  }
+
+  const now = new Date().toISOString()
+
+  await db
+    .update(serviceRequests)
+    .set({
+      status: 'completed' satisfies RequestStatus,
+      finalPrice,
+      completedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(serviceRequests.id, requestId))
+}
+
 export async function acceptRequest(db: Database, requestId: string, providerId: string) {
   const request = await getRequestById(db, requestId)
 

@@ -6,6 +6,8 @@ import {
   getJobsByProvider,
   createRequest,
   acceptRequest,
+  startRequest,
+  completeRequest,
 } from '../services/requests.service'
 import type { Database } from '../db/client'
 
@@ -291,6 +293,130 @@ requestsRoutes.openapi(getJobsByProviderRoute, async (c) => {
   const jobs = await getJobsByProvider(db, providerId)
 
   return c.json(jobs, 200)
+})
+
+// PUT /{id}/start
+const startRequestRoute = createRoute({
+  method: 'put',
+  path: '/{id}/start',
+  tags: ['Service Requests'],
+  summary: 'Iniciar un servicio (cambiar status de assigned a in_progress)',
+  request: {
+    params: z.object({
+      id: uuidSchema,
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Servicio iniciado exitosamente',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+    404: {
+      description: 'Solicitud no encontrada',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+    403: {
+      description: 'La solicitud no está en estado assigned',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+  },
+})
+
+requestsRoutes.openapi(startRequestRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const db = c.get('db')
+
+  try {
+    await startRequest(db, id)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN_ERROR'
+    const statusMap: Record<string, number> = {
+      REQUEST_NOT_FOUND: 404,
+      REQUEST_NOT_ASSIGNED: 403,
+    }
+    return c.json({ message }, statusMap[message] ?? 400)
+  }
+
+  return c.json({ message: 'Servicio iniciado exitosamente' }, 200)
+})
+
+// PUT /{id}/complete
+const completeRequestRoute = createRoute({
+  method: 'put',
+  path: '/{id}/complete',
+  tags: ['Service Requests'],
+  summary: 'Completar un servicio y guardar precio final',
+  request: {
+    params: z.object({
+      id: uuidSchema,
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            finalPrice: priceSchema,
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Servicio completado exitosamente',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+    404: {
+      description: 'Solicitud no encontrada',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+    403: {
+      description: 'La solicitud no está en estado in_progress',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+  },
+})
+
+requestsRoutes.openapi(completeRequestRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const body = c.req.valid('json')
+  const db = c.get('db')
+
+  try {
+    await completeRequest(db, id, body.finalPrice)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'UNKNOWN_ERROR'
+    const statusMap: Record<string, number> = {
+      REQUEST_NOT_FOUND: 404,
+      REQUEST_NOT_IN_PROGRESS: 403,
+    }
+    return c.json({ message }, statusMap[message] ?? 400)
+  }
+
+  return c.json({ message: 'Servicio completado exitosamente' }, 200)
 })
 
 export default requestsRoutes
