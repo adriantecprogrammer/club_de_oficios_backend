@@ -21,7 +21,6 @@ const createReviewRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            id: uuidSchema,
             requestId: uuidSchema,
             clientId: uuidSchema,
             providerId: uuidSchema,
@@ -51,7 +50,6 @@ reviewsRoutes.openapi(createReviewRoute, async (c) => {
   const db = c.get('db')
 
   await createReview(db, {
-    id: body.id,
     requestId: body.requestId,
     clientId: body.clientId,
     providerId: body.providerId,

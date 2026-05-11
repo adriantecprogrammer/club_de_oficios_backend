@@ -5,7 +5,6 @@ import type { Database } from '../db/client'
 export async function createReview(
   db: Database,
   data: {
-    id: string
     requestId: string
     clientId: string
     providerId: string
@@ -16,7 +15,7 @@ export async function createReview(
   const now = new Date().toISOString()
 
   await db.insert(reviews).values({
-    id: data.id,
+    id: crypto.randomUUID(),
     requestId: data.requestId,
     clientId: data.clientId,
     providerId: data.providerId,
